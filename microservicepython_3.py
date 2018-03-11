@@ -6,6 +6,11 @@ import MySQLdb
 import json
 import cgi 
 
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, decimal.Decimal):
+            return str(o)
+        return super(DecimalEncoder, self).default(o)
 
 class Microservice():
 
@@ -15,11 +20,20 @@ class Microservice():
         try:
             db = MySQLdb.connect(host="18.221.110.33", user="root", passwd="uniandes1", db="microservices",charset='utf8',use_unicode=True)        
             cur = db.cursor()
-            query = "INSERT INTO categoria (nombre , estado) VALUES("
-            query = query+"'"+nombre+"'"+','+"'"+estado+"'"+");"
-            cur.execute(query)
-            db.commit()
-            
+            query = ("SELECT * FROM categoria WHERE nombre = %s")
+            cur.execute(query, [nombre])
+            rows = cur.fetchall()
+            i=0
+            for row in rows:
+            	i=i+1
+            if i<=0:
+            	query = "INSERT INTO categoria (nombre , estado) VALUES("
+            	query = query+"'"+nombre+"'"+','+"'"+estado+"'"+");"
+            	cur.execute(query)
+            	db.commit()
+            	response = json.dumps({"id":str(cur.lastrowid)  ,"nombre": nombre, "estado":estado,"action":1, "message":'Categoria persistida'}, indent=4, sort_keys=True, cls=DecimalEncoder )
+            else:
+            	response =json.dumps({"id":str(cur.lastrowid)  ,"nombre": nombre, "estado":estado,"action":0, "message":'Categoria existente'}, indent=4, sort_keys=True, cls=DecimalEncoder )
         except IOError as e:
             db.rollback()
             db.close()
@@ -27,21 +41,22 @@ class Microservice():
 
 
         db.close() 
-        return {"id":str(cur.lastrowid)  ,"nombre": nombre} 
+        return response
 
 
 
     @staticmethod
-    def queuePublishMessage (id):
+    def queuePublishMessage (data):
         try:
 
             credentials = pika.PlainCredentials('test', 'test')
             parameters = pika.ConnectionParameters('192.168.50.4',5672,'/',credentials)
             connection = pika.BlockingConnection(parameters)
+            message = { "actionQueue":1,"data":data}
 
             channel = connection.channel()
             channel.queue_declare(queue='micro_sv')
-            channel.basic_publish(exchange='',routing_key='micro_sv',body='Publish :'+id)
+            channel.basic_publish(exchange='',routing_key='micro_sv',body=json.dumps(message, indent=4, sort_keys=True, cls=DecimalEncoder))
             connection.close()
 
             return "Message Sent to the Queue. Publish: "+id
@@ -63,12 +78,13 @@ def registrar_categoria():
         
                         
         data = Microservice.microserviceLogic(nombre,estado)
-        #msg = Microservice.queuePublishMessage(data["id"])
+        #msg = Microservice.queuePublishMessage(data)
         
         response = {} 
-        response['categoria'] = "Categoria "+data["nombre"]+" persistido."
-       # response['msg'] = msg
-        return  json.dumps(response)
+        response['categoria'] = json.loads(data)
+        # aqui irá el mensaje de Queue
+        response['msg'] = "Metodo registrar_categoria finalizado ok"
+        return  json.dumps(response, indent=4, sort_keys=True, cls=DecimalEncoder)
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", debug=True, port=5002)
