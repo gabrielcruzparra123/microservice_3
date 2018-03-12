@@ -50,15 +50,15 @@ class Microservice():
     def queuePublishMessage (data):
         try:
         	# Por favor quitar comentarios de la conexion a Pika Queue
-            #credentials = pika.PlainCredentials('test', 'test')
-            #parameters = pika.ConnectionParameters('192.168.50.5',5672,'/',credentials)
-            #connection = pika.BlockingConnection(parameters)
+            credentials = pika.PlainCredentials('test', 'test')
+            parameters = pika.ConnectionParameters('192.168.50.5',5672,'/',credentials)
+            connection = pika.BlockingConnection(parameters)
             message = { "actionCategoryQueue":1,"dataCategory":json.loads(data)}
 
-            #channel = connection.channel()
-            #channel.queue_declare(queue='micro_sv')
-            #channel.basic_publish(exchange='',routing_key='micro_sv', body=json.dumps(message, indent=4, sort_keys=True, cls=DecimalEncoder))
-            #connection.close()
+            channel = connection.channel()
+            channel.queue_declare(queue='micro_sv')
+            channel.basic_publish(exchange='',routing_key='micro_sv', body=json.dumps(message, indent=4, sort_keys=True, cls=DecimalEncoder))
+            connection.close()
 
             return json.dumps(message, indent=4, sort_keys=True, cls=DecimalEncoder)
         except IOError as e:
