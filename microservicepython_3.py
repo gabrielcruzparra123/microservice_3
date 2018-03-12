@@ -18,7 +18,7 @@ class Microservice():
     def microserviceLogic (nombre,estado):
 
         try:
-            db = MySQLdb.connect(host="18.221.110.33", user="root", passwd="uniandes1", db="microservices",charset='utf8',use_unicode=True)        
+            db = MySQLdb.connect(host="18.188.72.8", user="root", passwd="uniandes1", db="microservices",charset='utf8',use_unicode=True)        
             cur = db.cursor()
             query = ("SELECT * FROM categoria WHERE nombre = %s")
             cur.execute(query, [nombre])
@@ -37,7 +37,8 @@ class Microservice():
         except IOError as e:
             db.rollback()
             db.close()
-            return "Error BD: ".format(e.errno, e.strerror)
+            response = json.dumps({"id":0, "nombre": nombre, "estado":estado,"action":-1, "message":'Imposible persistir el objeto'}, indent=4, sort_keys=True, cls=DecimalEncoder )
+            return response
 
 
         db.close() 
@@ -48,21 +49,22 @@ class Microservice():
     @staticmethod
     def queuePublishMessage (data):
         try:
+        	# Por favor quitar comentarios de la conexion a Pika Queue
+            #credentials = pika.PlainCredentials('test', 'test')
+            #parameters = pika.ConnectionParameters('192.168.50.5',5672,'/',credentials)
+            #connection = pika.BlockingConnection(parameters)
+            message = { "actionCategoryQueue":1,"dataCategory":json.loads(data)}
 
-            credentials = pika.PlainCredentials('test', 'test')
-            parameters = pika.ConnectionParameters('192.168.50.4',5672,'/',credentials)
-            connection = pika.BlockingConnection(parameters)
-            message = { "actionQueue":1,"data":data}
+            #channel = connection.channel()
+            #channel.queue_declare(queue='micro_sv')
+            #channel.basic_publish(exchange='',routing_key='micro_sv', body=json.dumps(message, indent=4, sort_keys=True, cls=DecimalEncoder))
+            #connection.close()
 
-            channel = connection.channel()
-            channel.queue_declare(queue='micro_sv')
-            channel.basic_publish(exchange='',routing_key='micro_sv',body=json.dumps(message, indent=4, sort_keys=True, cls=DecimalEncoder))
-            connection.close()
-
-            return "Message Sent to the Queue. Publish: "+id
-
+            return json.dumps(message, indent=4, sort_keys=True, cls=DecimalEncoder)
         except IOError as e:
-            print ("Error Queue: ".format(e.errno, e.strerror))
+        	message = { "actionCategoryQueue":0,"dataCategory":json.loads(data)}
+        	return json.dumps(message, indent=4, sort_keys=True, cls=DecimalEncoder)
+
 
 app = Flask(__name__)
 
@@ -76,14 +78,12 @@ def registrar_categoria():
         nombre = req_data['nombre']
         estado = req_data['estado']
         
-                        
         data = Microservice.microserviceLogic(nombre,estado)
-        #msg = Microservice.queuePublishMessage(data)
+        msg = Microservice.queuePublishMessage(data)
         
         response = {} 
         response['categoria'] = json.loads(data)
-        # aqui irá el mensaje de Queue
-        response['msg'] = "Metodo registrar_categoria finalizado ok"
+        response['msg'] = json.loads(msg)
         return  json.dumps(response, indent=4, sort_keys=True, cls=DecimalEncoder)
 
 if __name__ == '__main__':
